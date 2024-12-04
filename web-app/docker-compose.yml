@@ -1,0 +1,8 @@
+services:
+  vulnerable-app:
+    image: registry.gitlab.com/elnurbda/ethical-hacking-proj:latest
+    ports:
+      - "3000:3000"
+    container_name: vulnerable-app
+    extra_hosts:
+      - "yelka.us-central1-b.c.getmoney-437018.internal:104.155.157.226"

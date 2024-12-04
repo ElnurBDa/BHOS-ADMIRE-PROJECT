@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ping Utility</title>
+</head>
+<body>
+    <h1>Ping Utility</h1>
+    <form action="/ping" method="POST">
+        <label for="hostname">Enter a hostname or IP:</label>
+        <input type="text" id="hostname" name="hostname" required>
+        <button type="submit">Ping</button>
+    </form>
+
+    <% if (result) { %>
+        <h2>Result:</h2>
+        <pre><%= result %></pre>
+    <% } %>
+
+    <% if (error) { %>
+        <h2>Error:</h2>
+        <pre><%= error %></pre>
+    <% } %>
+</body>
+</html>
+

@@ -1,0 +1,106 @@
+stages:
+  - isolation
+  - mitigation
+  - prevention
+  - build
+  - deploy
+
+variables:
+  DOCKER_IMAGE: $CI_REGISTRY_IMAGE
+
+# Build Stage
+build:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --add-host yelka.us-central1-b.c.getmoney-437018.internal:104.155.157.226 -t $DOCKER_IMAGE:$CI_COMMIT_SHA -t $DOCKER_IMAGE:latest .
+    - docker push $DOCKER_IMAGE:$CI_COMMIT_SHA
+    - docker push $DOCKER_IMAGE:latest
+
+isolation:
+  stage: isolation
+  image: docker:latest
+  before_script:
+    - apk add --no-cache openssh
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host $REMOTE_SERVER\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+  script:
+    - ssh $REMOTE_USER@$REMOTE_SERVER "
+        docker stop vulnerable-app &&
+        docker commit vulnerable-app compromised_image &&
+        docker save -o /tmp/compromised_image.tar compromised_image"
+  only:
+    - triggers
+
+# Mitigation Stage
+mitigation:
+  stage: mitigation
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git
+  script:
+    - mv Dockerfile.mitigated Dockerfile
+    - git config --global user.email "ci@example.com"
+    - git config --global user.name "GitLab CI"
+    - git remote set-url origin https://elnurbda:$CI_PUSH_TOKEN@gitlab.com/ElnurBDa/ethical-hacking-proj.git
+    - git checkout -b mitigation/update-dockerfile
+    - git add Dockerfile
+    - git commit -m "Update Dockerfile to mitigated version"
+    - git push --set-upstream origin mitigation/update-dockerfile
+    - >
+      curl --request POST --header "PRIVATE-TOKEN: $GITLAB_API_TOKEN" 
+      --data "id=$CI_PROJECT_ID&source_branch=mitigation/update-dockerfile&target_branch=main&title=Update Dockerfile for Mitigation" 
+      "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests"
+  only:
+    - triggers
+
+
+# Prevention Stage
+prevention:
+  stage: prevention
+  image: node:latest
+  before_script:
+    - apt-get update && apt-get install -y git
+    - git config --global user.email "ci@example.com"
+    - git config --global user.name "GitLab CI"
+    - git remote set-url origin https://elnurbda:$CI_PUSH_TOKEN@gitlab.com/ElnurBDa/ethical-hacking-proj.git
+  script:
+    - npx npm-check-updates -u
+    - npm install
+    - git checkout -b prevention/update-dependencies
+    - git add package.json package-lock.json
+    - git commit -m "Update dependencies for prevention"
+    - git push --set-upstream origin prevention/update-dependencies
+    - >
+      curl --request POST --header "PRIVATE-TOKEN: $GITLAB_API_TOKEN" \
+      --data "id=$CI_PROJECT_ID&source_branch=prevention/update-dependencies&target_branch=main&title=Update Dependencies for Prevention" \
+      "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests"
+  only:
+    - triggers
+
+
+# Deploy Stage
+deploy:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh
+    - mkdir -p ~/.ssh
+    - echo "$DEPLOY_PRIVATE_KEY" > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host $REMOTE_SERVER\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+  script:
+    - ssh $REMOTE_USER@$REMOTE_SERVER "mkdir -p $DEPLOY_PATH"
+    - scp -r ./docker-compose.yml $REMOTE_USER@$REMOTE_SERVER:$DEPLOY_PATH
+    - ssh $REMOTE_USER@$REMOTE_SERVER "
+        cd $DEPLOY_PATH &&
+        docker compose down &&
+        docker compose pull &&
+        docker compose up -d "
+  only:
+    - main

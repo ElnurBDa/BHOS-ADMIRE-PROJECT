@@ -1,0 +1,30 @@
+filebeat.inputs:
+  - type: log
+    id: app-stream
+    enabled: true
+    paths:
+      - /app/logs/*.log
+      - /var/log/*.log
+
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+setup.template.settings:
+  index.number_of_shards: 1
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0640
+
+# update here
+output.elasticsearch:
+  hosts: ["https://elasticsearch:9200"]
+  username: "elastic"
+  password: ""
+  protocol: "https"
+  ssl.certificate_authorities: ["/etc/filebeat/elastic-ca.crt"]
